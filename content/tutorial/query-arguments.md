@@ -91,3 +91,77 @@ resolve functions with atom keys.
 Finally you'll see that we need to handle the possibility that the
 query, while valid from GraphQL's perspective, may still ask for a
 user that does not exist.
+
+## Arguments in sub queries
+Let's assume, we want to query all posts from the user on a given date.
+First, let's add a `date` field to our `Post` object. We can use the built-in `date` scalar
+from Absinthe.
+
+```elixir
+# Import types from Absinthe
+import_types Absinthe.Type.Custom
+
+@desc "A blog post"
+object :post do
+  field :title, :string
+  field :body, :string
+  field :author, :user
+  field :date, :date
+end
+```
+
+Our ideal GraphQL query to get all posts from a user on a given date, would look like this:
+
+```graphql
+# description: Get all Posts from a given date.
+{
+  user(id: "1") {
+    name
+    email
+    posts(date: "2017-01-01") {
+      title
+      body
+      date
+    }
+  }
+}
+```
+
+To use the passed date in our resolver, we need to add this argument to our user type definition.
+
+```elixir
+@desc "A user of the blog"
+object :user do
+  field :id, :id
+  field :name, :string
+  field :email, :string
+  field :posts, list_of(:post) do
+    arg :date, :date
+    resolve &Blog.PostResolver.all/3 # We now use resolve with a 3-arity function
+  end
+end
+```
+
+As you see, we now use `resolve/3` where the first argument is the parent (our user) and the second 
+argument are the field arguments (our date). We now can return all posts from the given user on a 
+given date in our `PostResolver`.
+
+```elixir
+# filename: web/resolvers/post_resolver.ex
+defmodule Blog.PostResolver do
+  def all(%{id: id}, args, _info) do
+    query = Post
+    |> where(author_id: ^id)
+    
+    query = case args[:date] do
+      nil -> query
+      date -> query |> where(date: ^date)
+    end
+    
+    {:ok, Blog.Repo.all(query)}
+  end
+end
+```
+
+Our `date` argument is optional so we can query all posts from a user or just the posts on the given date.
+This is just an example, how you can build such a query with optional `where` clauses.
