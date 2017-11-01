@@ -30,9 +30,13 @@ Let's define our time type:
 ```elixir
 # filename: web/schema/types.ex
 
-scalar :time, description: "ISOz time" do
-  parse &Timex.DateFormat.parse(&1.value, "{ISOz}")
-  serialize &Timex.DateFormat.format!(&1, "{ISOz}")
+scalar :time do
+  description """
+  The `Time` scalar type represents an ISO 8601 compliant time string.
+  """
+
+  parse &Time.from_iso8601/1
+  serialize &Time.to_iso8601/1
 end
 ```
 
